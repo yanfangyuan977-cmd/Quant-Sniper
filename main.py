@@ -162,9 +162,12 @@ def main_cloud_loop():
 # ================= 🌟 极客防休眠：网页伪装层 =================
 app = Flask(__name__)
 
-@app.route('/')
-def keep_alive():
-    return "🚀 量化穹顶引擎在线运行中 (Cloud-Native Mode)..."
+# 极客万能大门：无视一切奇葩请求，强制返回 200 存活信号！
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def keep_alive(path):
+    return "🚀 量化穹顶引擎在线运行中 (Cloud-Native Mode)...", 200
+
 
 def run_flask_server():
     # 开放 8080 端口让外部可以访问
