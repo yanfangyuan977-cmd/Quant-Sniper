@@ -2,4 +2,6 @@ requests
 scikit-learn
 lightgbm
 Flask
+xgboost
+numpy
 
