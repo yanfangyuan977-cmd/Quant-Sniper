@@ -1,27 +1,46 @@
 import requests
 import time
 import random
+import json
+import os
 from collections import defaultdict
 import numpy as np
 import lightgbm as lgb
 from sklearn.ensemble import RandomForestClassifier
+import xgboost as xgb
 import warnings
-
-# ================= 新增：网页伪装依赖 =================
 import threading
 from flask import Flask
-# ====================================================
 
 warnings.filterwarnings("ignore")
 
-# ================= 极客配置区 =================
-DATA_URL = "https://" + "super.pc28998.com" + "/history/JND28"
+# ================= 🌟 核心资产配置区 =================
+DATA_URL = "https://super.pc28998.com/history/JND28"
 TELEGRAM_BOT_TOKEN = "8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
 TELEGRAM_CHAT_ID = "6824519270"
-# ==============================================
+RESERVOIR_FILE = "data_reservoir.json"  # 数据蓄水池文件
+# ===================================================
 
 GROUP_MAP = {"大双": 0, "大单": 1, "小双": 2, "小单": 3}
 REV_MAP = {0: "大双", 1: "大单", 2: "小双", 3: "小单"}
+
+# 全局蓄水池内存
+GLOBAL_RESERVOIR = {}
+
+def load_reservoir():
+    global GLOBAL_RESERVOIR
+    if os.path.exists(RESERVOIR_FILE):
+        try:
+            with open(RESERVOIR_FILE, 'r', encoding='utf-8') as f:
+                GLOBAL_RESERVOIR = json.load(f)
+            print(f"✅ 成功加载蓄水池数据: {len(GLOBAL_RESERVOIR)} 条记录")
+        except: pass
+
+def save_reservoir():
+    try:
+        with open(RESERVOIR_FILE, 'w', encoding='utf-8') as f:
+            json.dump(GLOBAL_RESERVOIR, f, ensure_ascii=False)
+    except: pass
 
 def send_telegram_message(message):
     if "你的Token" in TELEGRAM_BOT_TOKEN: return
@@ -45,17 +64,41 @@ def fetch_api_data(limit=50):
         return response.json() if response.status_code == 200 else None
     except: return None
 
-def extract_history(data_json):
+def update_and_get_reservoir():
+    """蓄水池进水阀：只进不出，自动去重，永久保存"""
+    global GLOBAL_RESERVOIR
+    data = fetch_api_data(50)
+    if not data: return None
+    
     records = []
-    if isinstance(data_json, list): records = data_json
-    elif isinstance(data_json, dict):
+    if isinstance(data, list): records = data
+    elif isinstance(data, dict):
         for key in ['data', 'list', 'result', 'records']:
-            if key in data_json and isinstance(data_json[key], list):
-                records = data_json[key]
+            if key in data and isinstance(data[key], list):
+                records = data[key]
                 break
-    if not records: return None, None, None
-    latest_issue = records[0].get('expect', '未知')
+                
+    if not records: return None
+    
+    # 将新数据注入蓄水池
+    updated = False
+    for r in records:
+        issue = str(r.get('expect'))
+        if issue and issue not in GLOBAL_RESERVOIR:
+            GLOBAL_RESERVOIR[issue] = r
+            updated = True
+            
+    if updated:
+        save_reservoir() # 写入本地文件
+        
+    # 按期号从小到大排序返回（最旧的数据在最前面，最新的在最后面）
+    sorted_issues = sorted(GLOBAL_RESERVOIR.keys())
+    return [GLOBAL_RESERVOIR[iss] for iss in sorted_issues]
+
+def extract_history_from_reservoir(records):
     groups, sums = [], []
+    if not records: return None, [], []
+    latest_issue = records[-1].get('expect', '未知')
     for r in records:
         opencode_str = r.get('opencode')
         if opencode_str:
@@ -65,7 +108,7 @@ def extract_history(data_json):
                 groups.append(get_group_type(tsum))
                 sums.append(tsum)
             except: continue
-    return latest_issue, groups[::-1], sums[::-1]
+    return latest_issue, groups, sums
 
 def build_markov_models(groups):
     order1 = defaultdict(lambda: defaultdict(int))
@@ -77,25 +120,54 @@ def build_markov_models(groups):
     if len(groups) >= 2: order1[groups[-2]][groups[-1]] += 1
     return order1, order2
 
-def run_lightgbm_predictor(groups, sums):
-    if len(sums) < 20: return None
+def prepare_ml_features(groups, sums):
+    if len(sums) < 25: 
+        return None, None, None
     X, y = [], []
     for i in range(3, len(sums) - 1):
         feature = [sums[i], np.mean(sums[i-2:i+1]), sums[i-1] % 2, GROUP_MAP[groups[i]]]
         X.append(feature)
         y.append(GROUP_MAP[groups[i+1]])
-    if len(set(y)) < 2: return groups[-1] 
-    model = lgb.LGBMClassifier(n_estimators=30, learning_rate=0.05, max_depth=3, silent=True)
-    model.fit(np.array(X), np.array(y))
+    if len(set(y)) < 2: 
+        return None, None, None
     latest_feature = np.array([[sums[-1], np.mean(sums[-3:]), sums[-2] % 2, GROUP_MAP[groups[-1]]]])
-    pred_idx = model.predict(latest_feature)[0]
-    return REV_MAP[pred_idx]
+    return np.array(X), np.array(y), latest_feature
 
-def run_stacking_judge(lgbm_pred, markov_pred, recent_groups):
-    if lgbm_pred == markov_pred: return lgbm_pred, 85.0 
-    volatility = sum(1 for i in range(1, len(recent_groups)) if recent_groups[i] != recent_groups[i-1]) / len(recent_groups)
-    if volatility > 0.6: return markov_pred, 55.0
-    else: return lgbm_pred, 60.0
+def run_ml_ensemble_predictors(X, y, latest_feature, fallback):
+    try:
+        model_lgb = lgb.LGBMClassifier(n_estimators=30, learning_rate=0.05, max_depth=3, verbose=-1)
+        model_lgb.fit(X, y)
+        lgb_pred = REV_MAP[model_lgb.predict(latest_feature)[0]]
+    except: lgb_pred = fallback
+
+    try:
+        model_xgb = xgb.XGBClassifier(n_estimators=30, learning_rate=0.05, max_depth=3, eval_metric='mlogloss', verbose=0)
+        model_xgb.fit(X, y)
+        xgb_pred = REV_MAP[model_xgb.predict(latest_feature)[0]]
+    except: xgb_pred = fallback
+
+    try:
+        model_rf = RandomForestClassifier(n_estimators=30, max_depth=3, random_state=42)
+        model_rf.fit(X, y)
+        rf_pred = REV_MAP[model_rf.predict(latest_feature)[0]]
+    except: rf_pred = fallback
+
+    return lgb_pred, xgb_pred, rf_pred
+
+def run_hybrid_ensemble_judge(lgb_p, xgb_p, rf_p, markov_p):
+    votes = defaultdict(int)
+    votes[lgb_p] += 1
+    votes[xgb_p] += 1
+    votes[rf_p] += 1
+    
+    ml_best = max(votes, key=votes.get)
+    ml_votes = votes[ml_best]
+    
+    if ml_votes == 3 and ml_best == markov_p: return ml_best, 92.0
+    elif ml_votes == 3: return ml_best, 80.0
+    elif ml_votes == 2 and ml_best == markov_p: return ml_best, 75.0
+    elif ml_votes == 2: return ml_best, 60.0
+    else: return markov_p, 45.0
 
 def calculate_kelly_fraction(win_prob):
     b = 0.95 
@@ -118,19 +190,23 @@ def get_dynamic_specials(target_groups, all_sums):
 
 def cloud_ensemble_engine(groups, sums):
     if len(groups) < 30: return "📡 数据加载中...", "观望", ["空仓"], [0], 0
-    lgbm_pred = run_lightgbm_predictor(groups, sums)
-    if not lgbm_pred: lgbm_pred = groups[-1]
+    
     order1, order2 = build_markov_models(groups)
     current_state_1 = groups[-1]
     current_state_2 = (groups[-2], groups[-1])
     next_probs = order2.get(current_state_2, order1.get(current_state_1, {}))
     if not next_probs: return "⚠️ 矩阵盲区", "观望", ["空仓"], [0], 0
     markov_top = sorted(next_probs.items(), key=lambda x: x[1], reverse=True)[0][0]
-    final_judge, confidence = run_stacking_judge(lgbm_pred, markov_top, groups[-15:])
-    vote_details = f"LGBM[{lgbm_pred}], 矩阵[{markov_top}]"
+    
+    X, y, latest_f = prepare_ml_features(groups, sums)
+    if X is not None: lgb_p, xgb_p, rf_p = run_ml_ensemble_predictors(X, y, latest_f, groups[-1])
+    else: lgb_p, xgb_p, rf_p = groups[-1], groups[-1], groups[-1]
+        
+    final_judge, confidence = run_hybrid_ensemble_judge(lgb_p, xgb_p, rf_p, markov_top)
+    vote_details = f"LGBM[{lgb_p}] | XGB[{xgb_p}] | RF[{rf_p}] | 矩阵[{markov_top}]"
     
     if confidence < 50.0:
-        return f"📉 混沌期预警 | 引擎分歧，强制锁仓\n🔍 详情: {vote_details}", "意见分歧", ["空仓", "防守"], [0], 0
+        return f"📉 混沌期预警 | 决策链多维分歧，强控锁仓\n🔍 详情: {vote_details}", "意见分歧", ["空仓", "防守"], [0], 0
         
     all_types = ["大单", "大双", "小单", "小双"]
     recommend_group = [final_judge]
@@ -140,19 +216,20 @@ def cloud_ensemble_engine(groups, sums):
     specials = get_dynamic_specials(recommend_group, sums)
     kelly_pct = calculate_kelly_fraction(confidence)
     
-    return f"👑 云端集成矩阵共振 | 胜率: {confidence:.1f}%\n🔍 底层侦测: {vote_details}", kill_group, recommend_group, specials, kelly_pct
+    return f"👑 云端最高法共振 | 胜率: {confidence:.1f}%\n🔍 样本池容量: {len(groups)}期\n🔍 底层侦测: {vote_details}", kill_group, recommend_group, specials, kelly_pct
 
 def main_cloud_loop():
+    load_reservoir() # 启动时先加载历史蓄水池
     last_issue = None
     while True:
-        data = fetch_api_data(50)
-        if data:
-            issue, groups, sums = extract_history(data)
+        all_records = update_and_get_reservoir() # 获取水池里所有数据
+        if all_records:
+            issue, groups, sums = extract_history_from_reservoir(all_records)
             if issue and issue != last_issue:
                 last_issue = issue
                 market_signal, kill, recommend, specials, kelly = cloud_ensemble_engine(groups, sums)
                 msg = f"🔔 **期号: {issue}** | 开出: `{sums[-1]:02d}` ({groups[-1]})\n-------------------------\n{market_signal}\n"
-                if "空仓" in recommend: msg += "\n🚫 **顶尖风控:** 大盘多空绞杀，强制空仓观望！"
+                if "空仓" in recommend: msg += "\n🚫 **顶尖风控:** 算法阵营陷入絞杀，强控全员空仓观望！"
                 else:
                     msg += f"\n❌ 绝杀: `{kill}`\n✅ 双组: `{' + '.join(recommend)}`\n🎯 特码: `{', '.join(map(str, specials))}`"
                     msg += f"\n💰 凯利风控: `{'0% (模拟)' if kelly == 0 else f'{kelly:.1f}% 仓位'}`"
@@ -162,24 +239,25 @@ def main_cloud_loop():
 # ================= 🌟 极客防休眠：网页伪装层 =================
 app = Flask(__name__)
 
-# 极客万能大门：无视一切奇葩请求，强制返回 200 存活信号！
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def keep_alive(path):
     return "🚀 量化穹顶引擎在线运行中 (Cloud-Native Mode)...", 200
 
-
 def run_flask_server():
-    # 开放 8080 端口让外部可以访问
-    app.run(host='0.0.0.0', port=8080)
-# ============================================================
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def self_ping():
+    while True:
+        try: requests.get("https://quant-sniper.onrender.com", timeout=5)
+        except: pass
+        time.sleep(600)
 
 if __name__ == "__main__":
-    send_telegram_message("✅ **Render 云原生要塞部署成功**\n------------------\nLGBM + Markov 伪装协议已启动！")
+    send_telegram_message("✅ **量化要塞重启成功**\n------------------\n数据蓄水池已开启，最高法官裁决系统运转中！")
     
-    # 启动多线程：一个线程负责当“网站”忽悠平台，一个线程在后台默默算量化
-    flask_thread = threading.Thread(target=run_flask_server)
-    flask_thread.start()
+    threading.Thread(target=run_flask_server, daemon=True).start()
+    threading.Thread(target=self_ping, daemon=True).start()
     
-    # 启动主核心
     main_cloud_loop()
