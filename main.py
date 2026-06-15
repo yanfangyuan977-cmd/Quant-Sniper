@@ -15,7 +15,7 @@ DATA_URL = "https://super.pc28998.com/history/JND28?limit=60"
 
 MONGO_URI = "mongodb+srv://admin:xiaoxin520@cluster0.apmxxbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-POLL_INTERVAL = 60       # ⚡ 降频至 60 秒一次，彻底解除 API 防火墙限流拦截
+POLL_INTERVAL = 60       
 MIN_DATA_REQUIRED = 300  
 EXTREME_THRESHOLD = 0.08 
 # =========================================================
@@ -33,17 +33,14 @@ def send_telegram_msg(text):
         pass
 
 def fetch_and_store_data():
-    """V3.7 全显版：强制实时闪存日志，绝不放过任何接口异常"""
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         res = requests.get(DATA_URL, headers=headers, timeout=5)
         json_res = res.json()
-        
         data_list = json_res.get("data", [])
         
-        # 🔍 降维监控：如果接口被软拦截返回了空包，立刻闪存曝光原话
         if not data_list:
             print(f"⚠️ 警告：接口未返回有效数据流！对方响应内容: {json_res}", flush=True)
             return 0, collection.count_documents({}), None
@@ -113,12 +110,14 @@ def train_and_predict(data_list):
         latest_feat.extend([h['A'], h['B'], h['C']])
     latest_feat = np.array([latest_feat])
     
+    # 🛡️ V3.8 核心防死锁参数配置
     params = {
         'objective': 'multiclass', 
         'num_class': 10, 
         'verbose': -1, 
         'seed': 42,
-        'num_leaves': 15
+        'num_leaves': 15,
+        'num_threads': 1  # 🛠️ 终极修复：强制指定单线程运算，彻底粉碎云端多线程死锁卡死 Bug！
     }
     
     ds_A = lgb.Dataset(X, label=y_A)
@@ -141,8 +140,8 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V3.7 微观量化要塞启动...", flush=True)
-    send_telegram_msg("🟢 **V3.7 终极要塞已上线**\n【全量雷达修复 + 降频破障版】启动！")
+    print("🚀 V3.8 微观量化要塞启动...", flush=True)
+    send_telegram_msg("🟢 **V3.8 终极要塞已上线**\n【单线程防死锁雷达】实装就位，解除静默状态！")
     
     last_issue_alerted = None
     
@@ -192,14 +191,14 @@ def run_quant_engine():
                 msg += f"🔍 样本池: `{total_count}`期 (云端永固)\n\n"
                 msg += "🎯 **【ABC 微观狙击】**\n"
                 msg += f"A区: `{pred_A}` ({get_attr(pred_A)}) | 胜率: {max(prob_A)*100:.1f}%\n"
-                msg += f"B区: `{pred_B}` ({get_attr(pred_B)}) | 胜率: {max(prob_B)*100:.1f}%\n"
+                msg += f"B区: `{pred_B}` ({get_attr(pred_B)}) | 胜cm胜率: {max(prob_B)*100:.1f}%\n"
                 msg += f"C区: `{pred_C}` ({get_attr(pred_C)}) | 胜率: {max(prob_C)*100:.1f}%\n\n"
                 
                 msg += "🎲 **【宏观概率合围】**\n"
                 best_combo = ""
                 if prob_big > prob_small and prob_even > prob_odd: best_combo = "大双"
                 elif prob_big > prob_small and prob_odd > prob_even: best_combo = "大单"
-                elif prob_small > prob_big and prob_even > prob_odd: best_combo = "小双"  # 🛠️ 彻底修复 opacity 幽灵变量 Bug
+                elif prob_small > prob_big and prob_even > prob_odd: best_combo = "小双"
                 else: best_combo = "小单"
                 
                 msg += f"✅ 核心双组: **{best_combo}**\n"
@@ -224,7 +223,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V3.7 微观量化要塞 (终极破障版) 正常运行中...", 200
+    return "🚀 V3.8 微观量化要塞 (单线程破锁版) 正常运行中...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
