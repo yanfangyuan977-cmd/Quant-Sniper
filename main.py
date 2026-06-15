@@ -9,13 +9,13 @@ import threading
 from flask import Flask
 
 # ================= 🎛️ 终极战术控制台 🎛️ =================
-BOT_TOKEN="8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
-CHAT_ID="6824519270"
-DATA_URL="https://super.pc28998.com/history/JND28?limit=60"
+BOT_TOKEN = "8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
+CHAT_ID = "6824519270"
+DATA_URL = "https://super.pc28998.com/history/JND28?limit=60"
 
 MONGO_URI = "mongodb+srv://admin:xiaoxin520@cluster0.apmxxbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-POLL_INTERVAL = 20       
+POLL_INTERVAL = 60       # ⚡ 降频至 60 秒一次，彻底解除 API 防火墙限流拦截
 MIN_DATA_REQUIRED = 300  
 EXTREME_THRESHOLD = 0.08 
 # =========================================================
@@ -33,21 +33,21 @@ def send_telegram_msg(text):
         pass
 
 def fetch_and_store_data():
-    """V3.6 破障版：加装浏览器伪装网，强制曝光异常响应"""
+    """V3.7 全显版：强制实时闪存日志，绝不放过任何接口异常"""
     try:
-        # 🛡️ 伪装成真实的桌面浏览器，防止被 API 防火墙针对性拦截
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         res = requests.get(DATA_URL, headers=headers, timeout=5)
         json_res = res.json()
         
-        # 🔍 核心诊断点：如果接口没有吐出 data 数组，直接将原话打印到 Render 控制台
-        if "data" not in json_res or not json_res["data"]:
-            print(f"⚠️ 接口未返回有效数据！对方原始响应: {json_res}")
+        data_list = json_res.get("data", [])
+        
+        # 🔍 降维监控：如果接口被软拦截返回了空包，立刻闪存曝光原话
+        if not data_list:
+            print(f"⚠️ 警告：接口未返回有效数据流！对方响应内容: {json_res}", flush=True)
             return 0, collection.count_documents({}), None
             
-        data_list = json_res.get("data", [])
         new_count = 0
         latest_issue = None
         
@@ -85,7 +85,7 @@ def fetch_and_store_data():
         total_count = collection.count_documents({})
         return new_count, total_count, latest_issue
     except Exception as e:
-        print(f"📡 物理层网络请求失败: {e}")
+        print(f"📡 物理层网络请求失败: {e}", flush=True)
         return 0, collection.count_documents({}), None
 
 def build_micro_features(data_list):
@@ -141,8 +141,8 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V3.6 微观量化要塞启动...")
-    send_telegram_msg("🟢 **V3.6 终极要塞已上线**\n【破障防拦截雷达】实装就位！")
+    print("🚀 V3.7 微观量化要塞启动...", flush=True)
+    send_telegram_msg("🟢 **V3.7 终极要塞已上线**\n【全量雷达修复 + 降频破障版】启动！")
     
     last_issue_alerted = None
     
@@ -153,7 +153,7 @@ def run_quant_engine():
             time.sleep(POLL_INTERVAL)
             continue
             
-        print(f"侦测到新期号: {latest_issue} | 云端总弹药: {total_count}期")
+        print(f"侦测到新期号: {latest_issue} | 云端总弹药: {total_count}期", flush=True)
         
         if total_count < MIN_DATA_REQUIRED:
             if latest_issue != last_issue_alerted:
@@ -199,7 +199,7 @@ def run_quant_engine():
                 best_combo = ""
                 if prob_big > prob_small and prob_even > prob_odd: best_combo = "大双"
                 elif prob_big > prob_small and prob_odd > prob_even: best_combo = "大单"
-                elif prob_small > prob_big and prob_even > opacity > prob_odd: best_combo = "小双"
+                elif prob_small > prob_big and prob_even > prob_odd: best_combo = "小双"  # 🛠️ 彻底修复 opacity 幽灵变量 Bug
                 else: best_combo = "小单"
                 
                 msg += f"✅ 核心双组: **{best_combo}**\n"
@@ -212,7 +212,7 @@ def run_quant_engine():
                 send_telegram_msg(msg)
                 
             except Exception as fire_error:
-                print(f"核心开火失败: {fire_error}")
+                print(f"核心开火失败: {fire_error}", flush=True)
                 error_msg = f"⚠️ **要塞核心报警**\n数量已满 `{total_count}` 期，但在算法点火时发生底层冲突：\n`{fire_error}`"
                 send_telegram_msg(error_msg)
                 
@@ -224,7 +224,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V3.6 微观量化要塞 (情报全开版) 正常运行中...", 200
+    return "🚀 V3.7 微观量化要塞 (终极破障版) 正常运行中...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
