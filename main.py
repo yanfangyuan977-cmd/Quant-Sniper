@@ -9,27 +9,22 @@ import threading
 from flask import Flask
 
 # ================= 🎛️ 终极战术控制台 🎛️ =================
-# ⚠️ 部署前必须替换为你自己的真实配置！
 BOT_TOKEN = "8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
 CHAT_ID = "6824519270"
 DATA_URL = "https://super.pc28998.com/history/JND28?limit=60"
 
-# MongoDB 云端武器库秘钥 (已修正为小写 m)
 MONGO_URI = "mongodb+srv://admin:xiaoxin520@cluster0.apmxxbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# 核心战术参数
-POLL_INTERVAL = 20       # 每 20 秒拉取一次数据防漏
-MIN_DATA_REQUIRED = 300  # 方案B：蓄水池最低启动期数
-EXTREME_THRESHOLD = 0.08 # 极值警报触发阈值 (爆发概率 > 8% 触发深海鱼雷)
+POLL_INTERVAL = 20       
+MIN_DATA_REQUIRED = 300  
+EXTREME_THRESHOLD = 0.08 
 # =========================================================
 
-# 连接云端武器库
 client = pymongo.MongoClient(MONGO_URI)
 db = client["pc28_quant_v3"]
 collection = db["history_data"]
 
 def send_telegram_msg(text):
-    """发送战报到 Telegram"""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": text, "parse_mode": "Markdown"}
     try:
@@ -38,18 +33,22 @@ def send_telegram_msg(text):
         pass
 
 def fetch_and_store_data():
-    """极速侦测并写入云端，返回最新一期的期号和特征库数量"""
+    """V3.2 破壁版：精准击穿新 API 的嵌套数据格式"""
     try:
         res = requests.get(DATA_URL, timeout=5)
-        data = res.json()
+        json_res = res.json()
+        
+        # 🔑 破解第一层陷阱：进入 "data" 抽屉
+        data_list = json_res.get("data", [])
         
         new_count = 0
         latest_issue = None
         
-        # 假设返回的是列表，倒序遍历保证按时间顺序插入
-        for item in reversed(data):
-            issue = str(item.get("issue", ""))
+        for item in reversed(data_list):
+            # 🔑 破解第二层陷阱：把期号的代号从 issue 改为 expect
+            issue = str(item.get("expect", ""))
             opencode = str(item.get("opencode", ""))
+            
             if not issue or not opencode:
                 continue
                 
@@ -79,7 +78,6 @@ def fetch_and_store_data():
         return 0, collection.count_documents({}), None
 
 def build_micro_features(data_list):
-    """ABC 三区微观独立特征工程"""
     X_A, X_B, X_C = [], [], []
     y_A, y_B, y_C = [], [], []
     
@@ -103,7 +101,6 @@ def build_micro_features(data_list):
     return np.array(X_A), np.array(y_A), np.array(y_B), np.array(y_C)
 
 def train_and_predict(data_list):
-    """路线 Y：训练三大独立模型，输出概率矩阵"""
     X, y_A, y_B, y_C = build_micro_features(data_list)
     
     latest_feat = []
@@ -133,9 +130,8 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    """主侦测循环引擎"""
-    print("🚀 V3.1 微观量化要塞启动...")
-    send_telegram_msg("🟢 **V3.1 终极要塞已上线**\n云端数据库连接成功，雷达启动！")
+    print("🚀 V3.2 微观量化要塞启动...")
+    send_telegram_msg("🟢 **V3.2 终极要塞已上线**\n云端数据库连接成功，雷达启动！")
     
     last_issue_alerted = None
     
@@ -148,16 +144,14 @@ def run_quant_engine():
             
         print(f"侦测到新期号: {latest_issue} | 云端总弹药: {total_count}期")
         
-        # ====== 方案 B：苦行僧静默锁 ======
         if total_count < MIN_DATA_REQUIRED:
             if latest_issue != last_issue_alerted:
                 if total_count % 10 == 0:
-                    send_telegram_msg(f"🔋 **武器充能中...**\n当前弹药: `{total_count} / {MIN_DATA_REQUIRED}` 期\n_方案B强制静默收集，不提供预测以保护资金_")
+                    send_telegram_msg(f"🔋 **武器充能中...**\n当前弹药: `{total_count} / {MIN_DATA_REQUIRED}` 期\n_方案B强制静默收集_")
                 last_issue_alerted = latest_issue
             time.sleep(POLL_INTERVAL)
             continue
             
-        # ====== 充能完毕，全功率开火 ======
         if latest_issue != last_issue_alerted:
             cursor = collection.find().sort("_id", 1)
             data_list = list(cursor)
@@ -201,31 +195,25 @@ def run_quant_engine():
             
             if prob_extreme >= EXTREME_THRESHOLD:
                 msg += f"\n🚨 **【深海鱼雷警报】** 🚨\n"
-                msg += f"极值(0-5, 22-27) 爆发概率异常: **{prob_extreme*100:.1f}%**\n"
-                msg += "建议：小仓位防守极大/极小，博取 17.5 倍赔率！\n"
+                msg += f"极值爆发概率异常: **{prob_extreme*100:.1f}%**\n"
+                msg += "建议：小仓防守极大/极小！\n"
                 
             send_telegram_msg(msg)
             last_issue_alerted = latest_issue
             
         time.sleep(POLL_INTERVAL)
 
-# =========================================================
-# 🛡️ Render 防崩溃伪装装甲 (Web Server)
-# =========================================================
 app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V3.1 微观量化要塞 (云端不灭版) 正常运行中...", 200
+    return "🚀 V3.2 微观量化要塞 (API破解版) 正常运行中...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, use_reloader=False)
 
 if __name__ == "__main__":
-    # 1. 开启伪装服务应付 Render 端口检测
     threading.Thread(target=run_flask_server, daemon=True).start()
-    
-    # 2. 启动核心量化引擎
     run_quant_engine()
 
