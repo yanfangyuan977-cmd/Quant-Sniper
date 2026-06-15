@@ -9,7 +9,7 @@ import threading
 from flask import Flask
 
 # ================= 🎛️ 终极战术控制台 🎛️ =================
-BOT_TOKEN="8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
+BOT_TOKEN = "8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
 CHAT_ID = "6824519270"
 DATA_URL = "https://super.pc28998.com/history/JND28?limit=60"
 
@@ -33,7 +33,7 @@ def send_telegram_msg(text):
         pass
 
 def fetch_and_store_data():
-    """V3.4 纯净版数据雷达"""
+    """V3.5 彻底修复版：移除画蛇添足的错误过滤，恢复全量抓取"""
     try:
         res = requests.get(DATA_URL, timeout=5)
         json_res = res.json()
@@ -43,6 +43,7 @@ def fetch_and_store_data():
         latest_issue = None
         
         for item in reversed(data_list):
+            # 🚫 彻底斩断上个版本的错误过滤，不再检测内嵌的 predict 键
             issue = str(item.get("expect", ""))
             opencode = str(item.get("opencode", ""))
             
@@ -104,7 +105,6 @@ def train_and_predict(data_list):
         latest_feat.extend([h['A'], h['B'], h['C']])
     latest_feat = np.array([latest_feat])
     
-    # 🛡️ 强制指定标签范围 0-9，防止因开奖数字不全导致的多分类器炸膛
     params = {
         'objective': 'multiclass', 
         'num_class': 10, 
@@ -133,8 +133,8 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V3.4 微观量化要塞启动...")
-    send_telegram_msg("🟢 **V3.4 终极要塞已上线**\n【防开火炸膛装甲】已实装，全量雷达启动！")
+    print("🚀 V3.5 微观量化要塞启动...")
+    send_telegram_msg("🟢 **V3.5 终极要塞已上线**\n【雷达全量修复】视野完全恢复，开火点火！")
     
     last_issue_alerted = None
     
@@ -155,13 +155,11 @@ def run_quant_engine():
             time.sleep(POLL_INTERVAL)
             continue
             
-        # ====== 🛡️ V3.4 核心防炸膛装甲区域 ======
         if latest_issue != last_issue_alerted:
             try:
                 cursor = collection.find().sort("_id", 1)
                 data_list = list(cursor)
                 
-                # 开始进行机器学习运算
                 prob_A, prob_B, prob_C = train_and_predict(data_list)
                 
                 pred_A = int(np.argmax(prob_A))
@@ -206,9 +204,8 @@ def run_quant_engine():
                 send_telegram_msg(msg)
                 
             except Exception as fire_error:
-                # 💥 抓取真实报错，核心绝不死机，直接向你汇报敌情！
                 print(f"核心开火失败: {fire_error}")
-                error_msg = f"⚠️ **要塞核心报警**\n数量已满 `{total_count}` 期，但在算法点火时发生底层冲突：\n`{fire_error}`\n_防护罩已启动：主循环未受损，数据正持续安全积攒中。_"
+                error_msg = f"⚠️ **要塞核心报警**\n数量已满 `{total_count}` 期，但在算法点火时发生底层冲突：\n`{fire_error}`"
                 send_telegram_msg(error_msg)
                 
             last_issue_alerted = latest_issue
@@ -219,7 +216,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V3.4 微观量化要塞 (防炸膛版) 正常运行中...", 200
+    return "🚀 V3.5 微观量化要塞 (完美去重版) 正常运行中...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
