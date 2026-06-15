@@ -9,9 +9,9 @@ import threading
 from flask import Flask
 
 # ================= 🎛️ 终极战术控制台 🎛️ =================
-BOT_TOKEN = "8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
-CHAT_ID = "6824519270"
-DATA_URL = "https://super.pc28998.com/history/JND28?limit=60"
+BOT_TOKEN="8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
+CHAT_ID="6824519270"
+DATA_URL="https://super.pc28998.com/history/JND28?limit=60"
 
 MONGO_URI = "mongodb+srv://admin:xiaoxin520@cluster0.apmxxbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
@@ -33,17 +33,25 @@ def send_telegram_msg(text):
         pass
 
 def fetch_and_store_data():
-    """V3.5 彻底修复版：移除画蛇添足的错误过滤，恢复全量抓取"""
+    """V3.6 破障版：加装浏览器伪装网，强制曝光异常响应"""
     try:
-        res = requests.get(DATA_URL, timeout=5)
+        # 🛡️ 伪装成真实的桌面浏览器，防止被 API 防火墙针对性拦截
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        res = requests.get(DATA_URL, headers=headers, timeout=5)
         json_res = res.json()
-        data_list = json_res.get("data", [])
         
+        # 🔍 核心诊断点：如果接口没有吐出 data 数组，直接将原话打印到 Render 控制台
+        if "data" not in json_res or not json_res["data"]:
+            print(f"⚠️ 接口未返回有效数据！对方原始响应: {json_res}")
+            return 0, collection.count_documents({}), None
+            
+        data_list = json_res.get("data", [])
         new_count = 0
         latest_issue = None
         
         for item in reversed(data_list):
-            # 🚫 彻底斩断上个版本的错误过滤，不再检测内嵌的 predict 键
             issue = str(item.get("expect", ""))
             opencode = str(item.get("opencode", ""))
             
@@ -77,7 +85,7 @@ def fetch_and_store_data():
         total_count = collection.count_documents({})
         return new_count, total_count, latest_issue
     except Exception as e:
-        print(f"侦测失败: {e}")
+        print(f"📡 物理层网络请求失败: {e}")
         return 0, collection.count_documents({}), None
 
 def build_micro_features(data_list):
@@ -133,8 +141,8 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V3.5 微观量化要塞启动...")
-    send_telegram_msg("🟢 **V3.5 终极要塞已上线**\n【雷达全量修复】视野完全恢复，开火点火！")
+    print("🚀 V3.6 微观量化要塞启动...")
+    send_telegram_msg("🟢 **V3.6 终极要塞已上线**\n【破障防拦截雷达】实装就位！")
     
     last_issue_alerted = None
     
@@ -191,7 +199,7 @@ def run_quant_engine():
                 best_combo = ""
                 if prob_big > prob_small and prob_even > prob_odd: best_combo = "大双"
                 elif prob_big > prob_small and prob_odd > prob_even: best_combo = "大单"
-                elif prob_small > prob_big and prob_even > prob_odd: best_combo = "小双"
+                elif prob_small > prob_big and prob_even > opacity > prob_odd: best_combo = "小双"
                 else: best_combo = "小单"
                 
                 msg += f"✅ 核心双组: **{best_combo}**\n"
@@ -216,7 +224,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V3.5 微观量化要塞 (完美去重版) 正常运行中...", 200
+    return "🚀 V3.6 微观量化要塞 (情报全开版) 正常运行中...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
