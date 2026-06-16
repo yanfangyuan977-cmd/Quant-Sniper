@@ -67,7 +67,7 @@ def parse_and_save_html(html_content):
 
 def auto_backfill_5000_records():
     print("⚡ 启动全自动历史时空回溯系统，正在合围大盘底裤...", flush=True)
-    send_telegram_msg("📡 **量化要塞启动中...**\n正在执行跨时空扫盘行动，全力吞噬历史母体数据...")
+    send_telegram_msg("📡 **量化要塞升级中...**\n正在执行跨时空扫盘行动，全力吞噬历史母体数据...")
     
     total_new_injected = 0
     for page in range(1, 51):
@@ -85,10 +85,10 @@ def auto_backfill_5000_records():
             break
             
     final_total = collection.count_documents({})
-    success_msg = f"🎉 **【特码狙击版要塞大捷】** 🎉\n"
+    success_msg = f"🎉 **【精纯跨度版要塞升级大捷】** 🎉\n"
     success_msg += f"📥 精纯数字弹药成功固化: `{total_new_injected}` 期\n"
     success_msg += f"💎 纯整型索引要塞总储备: **{final_total}** 期！\n"
-    success_msg += f"_13/14 反向狩猎算法模块已成功加载，等待全量开火！_"
+    success_msg += f"_💡 成功注入三区动态跨度特征（Span），全速拦截特码边界！_"
     send_telegram_msg(success_msg)
 
 def build_micro_features(data_list):
@@ -100,7 +100,9 @@ def build_micro_features(data_list):
         target = data_list[i+window]
         feat = []
         for h in hist:
-            feat.extend([h['A'], h['B'], h['C']])
+            # 💡 核心进化：提取历史跨度特征（最大值 - 最小值），死锁数字凝聚力
+            span = max(h['A'], h['B'], h['C']) - min(h['A'], h['B'], h['C'])
+            feat.extend([h['A'], h['B'], h['C'], span])
         X_A.append(feat)
         X_B.append(feat)
         X_C.append(feat)
@@ -113,16 +115,20 @@ def train_and_predict(data_list):
     X, y_A, y_B, y_C = build_micro_features(data_list)
     latest_feat = []
     for h in data_list[-5:]:
-        latest_feat.extend([h['A'], h['B'], h['C']])
+        span = max(h['A'], h['B'], h['C']) - min(h['A'], h['B'], h['C'])
+        latest_feat.extend([h['A'], h['B'], h['C'], span])
     latest_feat = np.array([latest_feat])
     
+    # 💡 安全锁：限制过拟合，每次分裂随机选取85%特征，每个叶子节点至少25个样本支撑
     params = {
         'objective': 'multiclass', 
         'num_class': 10, 
         'verbose': -1, 
         'seed': 42,
         'num_leaves': 15,
-        'num_threads': 1  
+        'num_threads': 1,
+        'feature_fraction': 0.85,
+        'min_data_in_leaf': 25
     }
     
     ds_A = lgb.Dataset(X, label=y_A)
@@ -145,10 +151,10 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V4.2 终极特码狙击要塞点火...", flush=True)
+    print("🚀 V4.3 精纯跨度狙击要塞点火...", flush=True)
     auto_backfill_5000_records()
     
-    send_telegram_msg("🟢 **V4.2 核心特码主炮已上线**\n【0-27点绝对胜率动态赛跑雷达】开始进入不间断巡航！")
+    send_telegram_msg("🟢 **V4.3 跨度制导要塞已上线**\n【动态跨度微观学习模块】已开始固化巡航！")
     last_issue_alerted = None
     
     while True:
@@ -178,14 +184,12 @@ def run_quant_engine():
                 pred_B = int(np.argmax(prob_B))
                 pred_C = int(np.argmax(prob_C))
                 
-                # 计算 0-27 点全量联合分布概率
                 total_probs = np.zeros(28)
                 for i in range(10):
                     for j in range(10):
                         for k in range(10):
                             total_probs[i+j+k] += prob_A[i] * prob_B[j] * prob_C[k]
                             
-                # 宏观组合计算（保留原始胜率参考，无任何人工修正，纯天然输出）
                 p_big_even = float(sum(total_probs[m] for m in range(14, 28) if m % 2 == 0))   
                 p_big_odd = float(sum(total_probs[m] for m in range(14, 28) if m % 2 != 0))    
                 p_small_even = float(sum(total_probs[m] for m in range(0, 14) if m % 2 == 0))  
@@ -197,8 +201,6 @@ def run_quant_engine():
                 ]
                 combos.sort(key=lambda x: x[1], reverse=True)  
                 
-                # ⚡ V4.2 核心改动：让 28 个具体特码数字进行绝对概率赛跑，掐尖挑选前3名
-                # numpy.argsort 可以返回从小到大的索引，[-3:] 截取最大 3 个，[::-1] 倒序变成从大到小
                 top_3_idx = np.argsort(total_probs)[-3:][::-1]
                 
                 next_issue = str(int(latest_issue) + 1)
@@ -214,7 +216,6 @@ def run_quant_engine():
                 msg += f"🥇 首选: **{combos[0][0]}** ({combos[0][1]*100:.1f}%)\n"
                 msg += f"🥈 次选: **{combos[1][0]}** ({combos[1][1]*100:.1f}%)\n\n"
                 
-                # ⚡ 战报核心进化区：特码绝对狙击弹夹
                 msg += "🔥 **【🎯 特码绝对狙击点】** 🔥\n"
                 msg += f"🥇 狙击一号: **{top_3_idx[0]}点** | 胜率: {total_probs[top_3_idx[0]]*100:.1f}%\n"
                 msg += f"🥈 狙击二号: **{top_3_idx[1]}点** | 胜率: {total_probs[top_3_idx[1]]*100:.1f}%\n"
@@ -232,7 +233,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V4.2 特码狙击要塞完全体正在最高效航行...", 200
+    return "🚀 V4.3 精纯跨度版巡航中...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
