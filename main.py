@@ -16,14 +16,12 @@ CHAT_ID = "6824519270"
 # 固化云端 MongoDB 通道
 MONGO_URI = "mongodb+srv://admin:xiaoxin520@cluster0.apmxxbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-POLL_INTERVAL = 60       # 每 60 秒轮询一次最新页面
+POLL_INTERVAL = 60       
 MIN_DATA_REQUIRED = 300  
-EXTREME_THRESHOLD = 0.08 
 # =========================================================
 
 client = pymongo.MongoClient(MONGO_URI)
 db = client["pc28_quant_v3"]
-# 💡 漏洞修复：启用全新精纯集合，避免与旧文本格式的 _id 发生冲突
 collection = db["history_data_v4"]
 
 HEADERS = {
@@ -47,12 +45,11 @@ def parse_and_save_html(html_content):
     latest_issue = None
     
     for item in reversed(records):
-        # 💡 漏洞修复：将期号强转为 int 型，彻底根除字符串字典序排序隐患
         issue_int = int(item[0])
         a, b, c = int(item[1]), int(item[2]), int(item[3])
         
         doc = {
-            "_id": issue_int,     # 固化为数字主键
+            "_id": issue_int,     
             "issue": str(issue_int),
             "A": a,
             "B": b,
@@ -69,7 +66,7 @@ def parse_and_save_html(html_content):
     return new_count, latest_issue
 
 def auto_backfill_5000_records():
-    print("⚡ 启动全自动历史时空回溯系统，正在合围前 50 页大盘底裤...", flush=True)
+    print("⚡ 启动全自动历史时空回溯系统，正在合围大盘底裤...", flush=True)
     send_telegram_msg("📡 **量化要塞启动中...**\n正在执行跨时空扫盘行动，全力吞噬历史母体数据...")
     
     total_new_injected = 0
@@ -82,19 +79,16 @@ def auto_backfill_5000_records():
             
             new_added, _ = parse_and_save_html(html_content)
             total_new_injected += new_added
-            
-            if page % 10 == 0:
-                print(f"⏳ 扫盘进度: {page}/50 页已吞噬...", flush=True)
             time.sleep(0.5)
         except Exception as e:
             print(f"⚠️ 扫盘在第 {page} 页遭遇微弱抵抗: {e}", flush=True)
             break
             
     final_total = collection.count_documents({})
-    success_msg = f"🎉 **【时空回溯防弹版大捷】** 🎉\n"
+    success_msg = f"🎉 **【特码狙击版要塞大捷】** 🎉\n"
     success_msg += f"📥 精纯数字弹药成功固化: `{total_new_injected}` 期\n"
     success_msg += f"💎 纯整型索引要塞总储备: **{final_total}** 期！\n"
-    success_msg += f"_彻底根除排序漏洞，算法大脑进入无瑕模式！_"
+    success_msg += f"_13/14 反向狩猎算法模块已成功加载，等待全量开火！_"
     send_telegram_msg(success_msg)
 
 def build_micro_features(data_list):
@@ -151,10 +145,10 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V4.1 纯净整型对冲要塞启动...", flush=True)
+    print("🚀 V4.2 终极特码狙击要塞点火...", flush=True)
     auto_backfill_5000_records()
     
-    send_telegram_msg("🟢 **V4.1 终极无瑕要塞已上线**\n【数字整型排序防御网】已全面固化！")
+    send_telegram_msg("🟢 **V4.2 核心特码主炮已上线**\n【0-27点绝对胜率动态赛跑雷达】开始进入不间断巡航！")
     last_issue_alerted = None
     
     while True:
@@ -168,7 +162,6 @@ def run_quant_engine():
             total_count = collection.count_documents({})
             
             if not latest_issue:
-                # 💡 漏洞修复：数字整型完美无误差进行降序兜底查询
                 last_doc = collection.find_one(sort=[("_id", pymongo.DESCENDING)])
                 if last_doc:
                     latest_issue = str(last_doc["_id"])
@@ -176,7 +169,6 @@ def run_quant_engine():
             if latest_issue and latest_issue != last_issue_alerted:
                 print(f"🎯 捕获新期号: {latest_issue} | 数据库储备: {total_count}期", flush=True)
                 
-                # 💡 漏洞修复：数字主键原生升序排列，速度极快，顺序100%精准
                 cursor = collection.find().sort("_id", 1)
                 data_list = list(cursor)
                 
@@ -186,26 +178,28 @@ def run_quant_engine():
                 pred_B = int(np.argmax(prob_B))
                 pred_C = int(np.argmax(prob_C))
                 
+                # 计算 0-27 点全量联合分布概率
                 total_probs = np.zeros(28)
                 for i in range(10):
                     for j in range(10):
                         for k in range(10):
                             total_probs[i+j+k] += prob_A[i] * prob_B[j] * prob_C[k]
                             
+                # 宏观组合计算（保留原始胜率参考，无任何人工修正，纯天然输出）
                 p_big_even = float(sum(total_probs[m] for m in range(14, 28) if m % 2 == 0))   
                 p_big_odd = float(sum(total_probs[m] for m in range(14, 28) if m % 2 != 0))    
                 p_small_even = float(sum(total_probs[m] for m in range(0, 14) if m % 2 == 0))  
                 p_small_odd = float(sum(total_probs[m] for m in range(0, 14) if m % 2 != 0))   
                 
                 combos = [
-                    ("大双", p_big_even),
-                    ("大单", p_big_odd),
-                    ("小双", p_small_even),
-                    ("小单", p_small_odd)
+                    ("大双", p_big_even), ("大单", p_big_odd),
+                    ("小双", p_small_even), ("小单", p_small_odd)
                 ]
                 combos.sort(key=lambda x: x[1], reverse=True)  
                 
-                prob_extreme = sum(total_probs[0:6]) + sum(total_probs[22:28])
+                # ⚡ V4.2 核心改动：让 28 个具体特码数字进行绝对概率赛跑，掐尖挑选前3名
+                # numpy.argsort 可以返回从小到大的索引，[-3:] 截取最大 3 个，[::-1] 倒序变成从大到小
+                top_3_idx = np.argsort(total_probs)[-3:][::-1]
                 
                 next_issue = str(int(latest_issue) + 1)
                 msg = f"🔔 期号: `{next_issue}` | 预测战报\n"
@@ -216,15 +210,16 @@ def run_quant_engine():
                 msg += f"B区: `{pred_B}` ({get_attr(pred_B)}) | 胜率: {max(prob_B)*100:.1f}%\n"
                 msg += f"C区: `{pred_C}` ({get_attr(pred_C)}) | 胜率: {max(prob_C)*100:.1f}%\n\n"
                 
-                msg += "🎲 **【宏观概率合围】**\n"
-                msg += f"🥇 核心首选: **{combos[0][0]}** | 胜率: {combos[0][1]*100:.1f}%\n"
-                msg += f"🥈 战术对冲: **{combos[1][0]}** | 胜率: {combos[1][1]*100:.1f}%\n\n"
+                msg += "🎲 **【宏观组合参考】**\n"
+                msg += f"🥇 首选: **{combos[0][0]}** ({combos[0][1]*100:.1f}%)\n"
+                msg += f"🥈 次选: **{combos[1][0]}** ({combos[1][1]*100:.1f}%)\n\n"
                 
-                if prob_extreme >= EXTREME_THRESHOLD:
-                    msg += f"🚨 **【深海鱼雷警报】** 🚨\n"
-                    msg += f"极值爆发概率异常: **{prob_extreme*100:.1f}%**\n"
-                    msg += "建议：小仓防守极大/极小！\n"
-                    
+                # ⚡ 战报核心进化区：特码绝对狙击弹夹
+                msg += "🔥 **【🎯 特码绝对狙击点】** 🔥\n"
+                msg += f"🥇 狙击一号: **{top_3_idx[0]}点** | 胜率: {total_probs[top_3_idx[0]]*100:.1f}%\n"
+                msg += f"🥈 狙击二号: **{top_3_idx[1]}点** | 胜率: {total_probs[top_3_idx[1]]*100:.1f}%\n"
+                msg += f"🥉 狙击三号: **{top_3_idx[2]}点** | 胜率: {total_probs[top_3_idx[2]]*100:.1f}%\n"
+                
                 send_telegram_msg(msg)
                 last_issue_alerted = latest_issue
                 
@@ -237,7 +232,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V4.1 终极排雷防御要塞正在稳定巡航...", 200
+    return "🚀 V4.2 特码狙击要塞完全体正在最高效航行...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
