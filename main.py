@@ -6,16 +6,17 @@ import lightgbm as lgb
 from datetime import datetime
 import os
 import threading
+import re
 from flask import Flask
 
-# ================= 🎛️ 终极战术控制台 🎛️ =================
+# ================= 🎛️ 终极量化控制台 🎛️ =================
 BOT_TOKEN = "8790154521:AAEUz-Idju8kOEjhqyV9IMv2PEr2ditTUQg"
 CHAT_ID = "6824519270"
-DATA_URL = "https://super.pc28998.com/history/JND28?limit=60"
 
+# 固化云端 MongoDB 通道
 MONGO_URI = "mongodb+srv://admin:xiaoxin520@cluster0.apmxxbi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-POLL_INTERVAL = 60       
+POLL_INTERVAL = 60       # 每 60 秒轮询一次最新页面
 MIN_DATA_REQUIRED = 300  
 EXTREME_THRESHOLD = 0.08 
 # =========================================================
@@ -23,6 +24,11 @@ EXTREME_THRESHOLD = 0.08
 client = pymongo.MongoClient(MONGO_URI)
 db = client["pc28_quant_v3"]
 collection = db["history_data"]
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "X-Requested-With": "XMLHttpRequest"
+}
 
 def send_telegram_msg(text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -32,58 +38,65 @@ def send_telegram_msg(text):
     except:
         pass
 
-def fetch_and_store_data():
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+def parse_and_save_html(html_content):
+    """🛠️ 核心激光手术刀：清洗 HTML 网页源码并安全去重存入数据库"""
+    pattern = r'<td[^>]*>(\d+)</td>\s*<td>\s*<span[^>]*>(\d+)</span>\s*<span[^>]*>(\d+)</span>\s*<span[^>]*>(\d+)</span>'
+    records = re.findall(pattern, html_content)
+    
+    new_count = 0
+    latest_issue = None
+    
+    # 逆序遍历，确保旧数据先处理，最新数据最后处理以获得准确的最新期号
+    for item in reversed(records):
+        issue = str(item[0])
+        a, b, c = int(item[1]), int(item[2]), int(item[3])
+        
+        doc = {
+            "_id": issue,
+            "issue": issue,
+            "A": a,
+            "B": b,
+            "C": c,
+            "total": a + b + c,
+            "timestamp": datetime.now()
         }
-        res = requests.get(DATA_URL, headers=headers, timeout=5)
-        json_res = res.json()
-        data_list = json_res.get("data", [])
         
-        if not data_list:
-            print(f"⚠️ 警告：接口未返回有效数据流！对方响应内容: {json_res}", flush=True)
-            return 0, collection.count_documents({}), None
+        result = collection.update_one({"_id": issue}, {"$setOnInsert": doc}, upsert=True)
+        if result.upserted_id is not None:
+            new_count += 1
+            latest_issue = issue
             
-        new_count = 0
-        latest_issue = None
-        
-        for item in reversed(data_list):
-            issue = str(item.get("expect", ""))
-            opencode = str(item.get("opencode", ""))
+    return new_count, latest_issue
+
+def auto_backfill_5000_records():
+    """🚀 V4.0 特种动作：启动时自动横扫 50 页历史时空，填满军火库"""
+    print("⚡ 启动全自动历史时空回溯系统，正在合围前 50 页大盘底裤...", flush=True)
+    send_telegram_msg("📡 **量化要塞启动中...**\n正在执行跨时空扫盘行动，全力吞噬 5000 期历史母体数据...")
+    
+    total_new_injected = 0
+    for page in range(1, 51):
+        url = f"https://www.jndpc.net/?ajax=1&tab=numbers&npage={page}"
+        try:
+            res = requests.get(url, headers=HEADERS, timeout=10)
+            data = res.json()
+            html_content = data.get("html", "")
             
-            if not issue or not opencode:
-                continue
-                
-            nums = [int(x) for x in opencode.split(",")]
-            if len(nums) != 3:
-                continue
-                
-            doc = {
-                "_id": issue, 
-                "issue": issue,
-                "A": nums[0],
-                "B": nums[1],
-                "C": nums[2],
-                "total": sum(nums),
-                "timestamp": datetime.now()
-            }
+            new_added, _ = parse_and_save_html(html_content)
+            total_new_injected += new_added
             
-            result = collection.update_one({"_id": issue}, {"$setOnInsert": doc}, upsert=True)
-            if result.upserted_id is not None:
-                new_count += 1
-                latest_issue = issue
-                
-        if new_count > 0 and not latest_issue:
-            last_doc = collection.find_one(sort=[("_id", pymongo.DESCENDING)])
-            if last_doc:
-                latest_issue = last_doc["issue"]
-                
-        total_count = collection.count_documents({})
-        return new_count, total_count, latest_issue
-    except Exception as e:
-        print(f"📡 物理层网络请求失败: {e}", flush=True)
-        return 0, collection.count_documents({}), None
+            if page % 10 == 0:
+                print(f"⏳ 扫盘进度: {page}/50 页已吞噬...", flush=True)
+            time.sleep(0.5)  # 云端优雅防封延时
+        except Exception as e:
+            print(f"⚠️ 扫盘在第 {page} 页遭遇微弱抵抗: {e}", flush=True)
+            break
+            
+    final_total = collection.count_documents({})
+    success_msg = f"🎉 **【时空回溯圆满大捷】** 🎉\n"
+    success_msg += f"📥 本次新固化历史弹药: `{total_new_injected}` 期\n"
+    success_msg += f"💎 云端要塞总储备现已达到: **{final_total}** 期！\n"
+    success_msg += f"_算法大脑已吃饱和解构全部12天历史红利！_"
+    send_telegram_msg(success_msg)
 
 def build_micro_features(data_list):
     X_A, X_B, X_C = [], [], []
@@ -110,14 +123,13 @@ def train_and_predict(data_list):
         latest_feat.extend([h['A'], h['B'], h['C']])
     latest_feat = np.array([latest_feat])
     
-    # 🛡️ V3.8 核心防死锁参数配置
     params = {
         'objective': 'multiclass', 
         'num_class': 10, 
         'verbose': -1, 
         'seed': 42,
         'num_leaves': 15,
-        'num_threads': 1  # 🛠️ 终极修复：强制指定单线程运算，彻底粉碎云端多线程死锁卡死 Bug！
+        'num_threads': 1  # 绝对锁定单线程，杜绝漂移
     }
     
     ds_A = lgb.Dataset(X, label=y_A)
@@ -140,33 +152,39 @@ def get_attr(num):
     return f"{size}{parity}"
 
 def run_quant_engine():
-    print("🚀 V3.8 微观量化要塞启动...", flush=True)
-    send_telegram_msg("🟢 **V3.8 终极要塞已上线**\n【单线程防死锁雷达】实装就位，解除静默状态！")
+    print("🚀 V4.0 全自动时空回溯要塞点火...", flush=True)
     
+    # ⚡ 步骤一：启动即执行 50 页全量历史吞噬
+    auto_backfill_5000_records()
+    
+    send_telegram_msg("🟢 **V4.0 终极要塞完全体已上线**\n【全量实时同步雷达】开始进入每 60 秒不间断巡航状态！")
     last_issue_alerted = None
     
     while True:
-        new_added, total_count, latest_issue = fetch_and_store_data()
-        
-        if new_added == 0:
-            time.sleep(POLL_INTERVAL)
-            continue
+        try:
+            # ⚡ 步骤二：每 60 秒高频锁定最新第 1 页抓取
+            live_url = "https://www.jndpc.net/?ajax=1&tab=numbers&npage=1"
+            res = requests.get(live_url, headers=HEADERS, timeout=10)
+            data = res.json()
+            html_content = data.get("html", "")
             
-        print(f"侦测到新期号: {latest_issue} | 云端总弹药: {total_count}期", flush=True)
-        
-        if total_count < MIN_DATA_REQUIRED:
-            if latest_issue != last_issue_alerted:
-                if total_count % 10 == 0:
-                    send_telegram_msg(f"🔋 **武器充能中...**\n当前弹药: `{total_count} / {MIN_DATA_REQUIRED}` 期")
-                last_issue_alerted = latest_issue
-            time.sleep(POLL_INTERVAL)
-            continue
+            new_added, latest_issue = parse_and_save_html(html_content)
+            total_count = collection.count_documents({})
             
-        if latest_issue != last_issue_alerted:
-            try:
+            # 如果没抓出最新期号，从数据库兜底查最新一条
+            if not latest_issue:
+                last_doc = collection.find_one(sort=[("_id", pymongo.DESCENDING)])
+                if last_doc:
+                    latest_issue = last_doc["issue"]
+            
+            # 只有当新抓取到数据，且是一个全新未预测过的期号时，触发开火
+            if latest_issue and latest_issue != last_issue_alerted:
+                print(f"🎯 捕获新实盘轨迹期号: {latest_issue} | 当前数据库储备: {total_count}期", flush=True)
+                
                 cursor = collection.find().sort("_id", 1)
                 data_list = list(cursor)
                 
+                # 算法起算
                 prob_A, prob_B, prob_C = train_and_predict(data_list)
                 
                 pred_A = int(np.argmax(prob_A))
@@ -188,10 +206,10 @@ def run_quant_engine():
                 next_issue = str(int(latest_issue) + 1)
                 msg = f"🔔 期号: `{next_issue}` | 预测战报\n"
                 msg += "-" * 25 + "\n"
-                msg += f"🔍 样本池: `{total_count}`期 (云端永固)\n\n"
+                msg += f"🔍 样本池: `{total_count}`期 (黄金源)\n\n"
                 msg += "🎯 **【ABC 微观狙击】**\n"
                 msg += f"A区: `{pred_A}` ({get_attr(pred_A)}) | 胜率: {max(prob_A)*100:.1f}%\n"
-                msg += f"B区: `{pred_B}` ({get_attr(pred_B)}) | 胜cm胜率: {max(prob_B)*100:.1f}%\n"
+                msg += f"B区: `{pred_B}` ({get_attr(pred_B)}) | 胜率: {max(prob_B)*100:.1f}%\n"
                 msg += f"C区: `{pred_C}` ({get_attr(pred_C)}) | 胜率: {max(prob_C)*100:.1f}%\n\n"
                 
                 msg += "🎲 **【宏观概率合围】**\n"
@@ -209,13 +227,10 @@ def run_quant_engine():
                     msg += "建议：小仓防守极大/极小！\n"
                     
                 send_telegram_msg(msg)
+                last_issue_alerted = latest_issue
                 
-            except Exception as fire_error:
-                print(f"核心开火失败: {fire_error}", flush=True)
-                error_msg = f"⚠️ **要塞核心报警**\n数量已满 `{total_count}` 期，但在算法点火时发生底层冲突：\n`{fire_error}`"
-                send_telegram_msg(error_msg)
-                
-            last_issue_alerted = latest_issue
+        except Exception as e:
+            print(f"⚠️ 核心循环发生短暂网络抖动: {e}", flush=True)
             
         time.sleep(POLL_INTERVAL)
 
@@ -223,7 +238,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V3.8 微观量化要塞 (单线程破锁版) 正常运行中...", 200
+    return "🚀 V4.0 时空回溯要塞最高完全体已就位...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
