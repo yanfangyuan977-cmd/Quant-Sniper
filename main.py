@@ -66,8 +66,8 @@ def parse_and_save_html(html_content):
     return new_count, latest_issue
 
 def auto_backfill_5000_records():
-    print("⚡ 启动全自动历史时空回溯系统，正在合围大盘底裤...", flush=True)
-    send_telegram_msg("📡 **量化要塞升级中...**\n正在执行跨时空扫盘行动，全力吞噬历史母体数据...")
+    print("⚡ 启动全自动历史时空回溯系统...", flush=True)
+    send_telegram_msg("📡 **V5.0 天王星宏观直分类版部署中...**\n核心重炮正在进行底层数据链深度咬合...")
     
     total_new_injected = 0
     for page in range(1, 51):
@@ -85,76 +85,97 @@ def auto_backfill_5000_records():
             break
             
     final_total = collection.count_documents({})
-    success_msg = f"🎉 **【精纯跨度版要塞升级大捷】** 🎉\n"
-    success_msg += f"📥 精纯数字弹药成功固化: `{total_new_injected}` 期\n"
-    success_msg += f"💎 纯整型索引要塞总储备: **{final_total}** 期！\n"
-    success_msg += f"_💡 成功注入三区动态跨度特征（Span），全速拦截特码边界！_"
+    success_msg = f"🎉 **【V5.0 宏观直分类版要塞合龙】** 🎉\n"
+    success_msg += f"📥 固化历史母体总规模: **{final_total}** 期！\n"
+    success_msg += f"_💡 彻底废除ABC微观连乘错误，双重宏观大局观雷达已锁死目标！_"
     send_telegram_msg(success_msg)
 
-def build_micro_features(data_list):
-    X_A, X_B, X_C = [], [], []
-    y_A, y_B, y_C = [], [], []
-    window = 5 
-    for i in range(len(data_list) - window):
-        hist = data_list[i:i+window]
-        target = data_list[i+window]
-        feat = []
-        for h in hist:
-            # 💡 核心进化：提取历史跨度特征（最大值 - 最小值），死锁数字凝聚力
-            span = max(h['A'], h['B'], h['C']) - min(h['A'], h['B'], h['C'])
-            feat.extend([h['A'], h['B'], h['C'], span])
-        X_A.append(feat)
-        X_B.append(feat)
-        X_C.append(feat)
-        y_A.append(target['A'])
-        y_B.append(target['B'])
-        y_C.append(target['C'])
-    return np.array(X_A), np.array(y_A), np.array(y_B), np.array(y_C)
-
-def train_and_predict(data_list):
-    X, y_A, y_B, y_C = build_micro_features(data_list)
-    latest_feat = []
-    for h in data_list[-5:]:
+def extract_features_from_slice(hist_slice):
+    """
+    💡 核心解耦复核：提取确定维度的特征向量。
+    包含：最后5期的微观特征，以及整段历史（10期）的宏观滚动气候。
+    """
+    feat = []
+    # 1. 抽取最后5期的微观物理状态
+    for h in hist_slice[-5:]:
         span = max(h['A'], h['B'], h['C']) - min(h['A'], h['B'], h['C'])
-        latest_feat.extend([h['A'], h['B'], h['C'], span])
-    latest_feat = np.array([latest_feat])
+        feat.extend([h['A'], h['B'], h['C'], h['total'], span]) # 5期 * 5 = 25个特征
+        
+    # 2. 注入方案二最强的大局观大盘宏观气候（基于整段10期）
+    totals = [x['total'] for x in hist_slice]
+    rolling_mean = float(np.mean(totals))
+    rolling_std = float(np.std(totals))
+    feat.extend([rolling_mean, rolling_std]) # 2个特征
     
-    # 💡 安全锁：限制过拟合，每次分裂随机选取85%特征，每个叶子节点至少25个样本支撑
-    params = {
-        'objective': 'multiclass', 
-        'num_class': 10, 
+    return feat # 固定维度：25 + 2 = 27维特征，严防任何反向提升
+
+def build_macro_dataset(data_list):
+    X = []
+    y_combo = []
+    y_special = []
+    window = 10 # 滚动时间窗口拉长到10，提供大局观背景
+    
+    for i in range(len(data_list) - window):
+        hist_slice = data_list[i : i + window]
+        target_item = data_list[i + window]
+        
+        # 提取27维特征
+        feat = extract_features_from_slice(hist_slice)
+        X.append(feat)
+        
+        # 彻底砍掉中间商，直接对最终宏观目标进行硬映射
+        total = target_item['total']
+        is_big = 1 if total >= 14 else 0
+        is_odd = 1 if total % 2 != 0 else 0
+        
+        # 组合映射编码：0:大单, 1:大双, 2:小单, 3:小双
+        if is_big and is_odd: combo_code = 0
+        elif is_big and not is_odd: combo_code = 1
+        elif not is_big and is_odd: combo_code = 2
+        else: combo_code = 3
+        
+        y_combo.append(combo_code)
+        y_special.append(total) # 特码直接映射 0 - 27 分类
+        
+    return np.array(X), np.array(y_combo), np.array(y_special)
+
+def train_and_predict_macro(data_list):
+    X, y_combo, y_special = build_macro_dataset(data_list)
+    
+    # 提取当前最新的27维特征
+    latest_feat = np.array([extract_features_from_slice(data_list[-10:])])
+    
+    # 💡 军工级参数防线，配合1717期大数据，强力卡死任何过拟合噪音
+    base_params = {
         'verbose': -1, 
         'seed': 42,
-        'num_leaves': 15,
+        'num_leaves': 31,
         'num_threads': 1,
-        'feature_fraction': 0.85,
-        'min_data_in_leaf': 25
+        'feature_fraction': 0.8,
+        'min_data_in_leaf': 35
     }
     
-    ds_A = lgb.Dataset(X, label=y_A)
-    model_A = lgb.train(params, ds_A, num_boost_round=30)
-    prob_A = model_A.predict(latest_feat)[0]
+    # 🔥 重炮一：组合4分类直接预测器
+    params_combo = base_params.copy()
+    params_combo.update({'objective': 'multiclass', 'num_class': 4})
+    ds_combo = lgb.Dataset(X, label=y_combo)
+    model_combo = lgb.train(params_combo, ds_combo, num_boost_round=35)
+    prob_combo = model_combo.predict(latest_feat)[0] # 长度为4的宏观纯净概率数组
     
-    ds_B = lgb.Dataset(X, label=y_B)
-    model_B = lgb.train(params, ds_B, num_boost_round=30)
-    prob_B = model_B.predict(latest_feat)[0]
+    # 🔥 重炮二：特码28分类直接预测器
+    params_special = base_params.copy()
+    params_special.update({'objective': 'multiclass', 'num_class': 28})
+    ds_special = lgb.Dataset(X, label=y_special)
+    model_special = lgb.train(params_special, ds_special, num_boost_round=35)
+    prob_special = model_special.predict(latest_feat)[0] # 长度为28的特码纯净概率数组
     
-    ds_C = lgb.Dataset(X, label=y_C)
-    model_C = lgb.train(params, ds_C, num_boost_round=30)
-    prob_C = model_C.predict(latest_feat)[0]
-    
-    return prob_A, prob_B, prob_C
-
-def get_attr(num):
-    size = "大" if num >= 5 else "小"
-    parity = "单" if num % 2 != 0 else "双"
-    return f"{size}{parity}"
+    return prob_combo, prob_special
 
 def run_quant_engine():
-    print("🚀 V4.3 精纯跨度狙击要塞点火...", flush=True)
+    print("🚀 V5.0 天王星宏观直分类狙击要塞点火...", flush=True)
     auto_backfill_5000_records()
     
-    send_telegram_msg("🟢 **V4.3 跨度制导要塞已上线**\n【动态跨度微观学习模块】已开始固化巡航！")
+    send_telegram_msg("🟢 **V5.0 宏观直分类主炮全面校准**\n【组合4分类 & 特码28分类级独立制导系统】进入不间断战备！")
     last_issue_alerted = None
     
     while True:
@@ -178,48 +199,30 @@ def run_quant_engine():
                 cursor = collection.find().sort("_id", 1)
                 data_list = list(cursor)
                 
-                prob_A, prob_B, prob_C = train_and_predict(data_list)
+                # 执行V5.0终极宏观直分类预测
+                prob_combo, prob_special = train_and_predict_macro(data_list)
                 
-                pred_A = int(np.argmax(prob_A))
-                pred_B = int(np.argmax(prob_B))
-                pred_C = int(np.argmax(prob_C))
+                # 解析预测组合排序
+                combo_names = ["大单", "大双", "小单", "小双"]
+                combos = [(combo_names[i], float(prob_combo[i])) for i in range(4)]
+                combos.sort(key=lambda x: x[1], reverse=True) # 纯天然无连乘损耗的宏观胜率
                 
-                total_probs = np.zeros(28)
-                for i in range(10):
-                    for j in range(10):
-                        for k in range(10):
-                            total_probs[i+j+k] += prob_A[i] * prob_B[j] * prob_C[k]
-                            
-                p_big_even = float(sum(total_probs[m] for m in range(14, 28) if m % 2 == 0))   
-                p_big_odd = float(sum(total_probs[m] for m in range(14, 28) if m % 2 != 0))    
-                p_small_even = float(sum(total_probs[m] for m in range(0, 14) if m % 2 == 0))  
-                p_small_odd = float(sum(total_probs[m] for m in range(0, 14) if m % 2 != 0))   
-                
-                combos = [
-                    ("大双", p_big_even), ("大单", p_big_odd),
-                    ("小双", p_small_even), ("小单", p_small_odd)
-                ]
-                combos.sort(key=lambda x: x[1], reverse=True)  
-                
-                top_3_idx = np.argsort(total_probs)[-3:][::-1]
+                # 解析特码绝对前三名
+                top_3_special_idx = np.argsort(prob_special)[-3:][::-1]
                 
                 next_issue = str(int(latest_issue) + 1)
-                msg = f"🔔 期号: `{next_issue}` | 预测战报\n"
+                msg = f"🔔 期号: `{next_issue}` | V5.0 天王星宏观战报\n"
                 msg += "-" * 25 + "\n"
-                msg += f"🔍 样本池: `{total_count}`期 (黄金源)\n\n"
-                msg += "🎯 **【ABC 微观狙击】**\n"
-                msg += f"A区: `{pred_A}` ({get_attr(pred_A)}) | 胜率: {max(prob_A)*100:.1f}%\n"
-                msg += f"B区: `{pred_B}` ({get_attr(pred_B)}) | 胜率: {max(prob_B)*100:.1f}%\n"
-                msg += f"C区: `{pred_C}` ({get_attr(pred_C)}) | 胜率: {max(prob_C)*100:.1f}%\n\n"
+                msg += f"🔍 战略数据源: `{total_count}`期 (大样本蓄能)\n\n"
                 
-                msg += "🎲 **【宏观组合参考】**\n"
-                msg += f"🥇 首选: **{combos[0][0]}** ({combos[0][1]*100:.1f}%)\n"
-                msg += f"🥈 次选: **{combos[1][0]}** ({combos[1][1]*100:.1f}%)\n\n"
+                msg += "🎲 **【🔥 宏观直接分类制导】**\n"
+                msg += f"🥇 核心首选: **{combos[0][0]}** | 纯净胜率: {combos[0][1]*100:.1f}%\n"
+                msg += f"🥈 战术次选: **{combos[1][0]}** | 纯净胜率: {combos[1][1]*100:.1f}%\n\n"
                 
-                msg += "🔥 **【🎯 特码绝对狙击点】** 🔥\n"
-                msg += f"🥇 狙击一号: **{top_3_idx[0]}点** | 胜率: {total_probs[top_3_idx[0]]*100:.1f}%\n"
-                msg += f"🥈 狙击二号: **{top_3_idx[1]}点** | 胜率: {total_probs[top_3_idx[1]]*100:.1f}%\n"
-                msg += f"🥉 狙击三号: **{top_3_idx[2]}点** | 胜率: {total_probs[top_3_idx[2]]*100:.1f}%\n"
+                msg += "🎯 **【🔥 特码直接分类狙击】**\n"
+                msg += f"🥇 狙击一号: **{top_3_special_idx[0]}点** | 独立胜率: {prob_special[top_3_special_idx[0]]*100:.1f}%\n"
+                msg += f"🥈 狙击二号: **{top_3_special_idx[1]}点** | 独立胜率: {prob_special[top_3_special_idx[1]]*100:.1f}%\n"
+                msg += f"🥉 狙击三号: **{top_3_special_idx[2]}点** | 独立胜率: {prob_special[top_3_special_idx[2]]*100:.1f}%\n"
                 
                 send_telegram_msg(msg)
                 last_issue_alerted = latest_issue
@@ -233,7 +236,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def keep_alive():
-    return "🚀 V4.3 精纯跨度版巡航中...", 200
+    return "🚀 V5.0 天王星宏观直分类完全体正在最高效航行...", 200
 
 def run_flask_server():
     port = int(os.environ.get("PORT", 8080))
